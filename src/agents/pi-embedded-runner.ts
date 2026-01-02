@@ -26,6 +26,7 @@ import type { ThinkLevel, VerboseLevel } from "../auto-reply/thinking.js";
 import { formatToolAggregate } from "../auto-reply/tool-meta.js";
 import type { ClawdisConfig } from "../config/config.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
+import { ensureAnthropicRateLimitMiddleware } from "../infra/anthropic-rate-limits.js";
 import { splitMediaFromOutput } from "../media/parse.js";
 import {
   type enqueueCommand,
@@ -346,6 +347,7 @@ export async function runEmbeddedPiAgent(params: {
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
 }): Promise<EmbeddedPiRunResult> {
+  ensureAnthropicRateLimitMiddleware();
   const sessionLane = resolveSessionLane(
     params.sessionKey?.trim() || params.sessionId,
   );
