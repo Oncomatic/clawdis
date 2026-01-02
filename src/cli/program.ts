@@ -10,11 +10,12 @@ import { sessionsCommand } from "../commands/sessions.js";
 import { setupCommand } from "../commands/setup.js";
 import { statusCommand } from "../commands/status.js";
 import { updateCommand } from "../commands/update.js";
-import { readConfigFileSnapshot } from "../config/config.js";
+import { usageCommand } from "../commands/usage.js";
 import { danger, setVerbose } from "../globals.js";
 import { loginWeb, logoutWeb } from "../provider-web.js";
 import { defaultRuntime } from "../runtime.js";
 import { VERSION } from "../version.js";
+import { readConfigFileSnapshot } from "../config/config.js";
 import { registerBrowserCli } from "./browser-cli.js";
 import { registerCanvasCli } from "./canvas-cli.js";
 import { registerCronCli } from "./cron-cli.js";
@@ -24,7 +25,6 @@ import { registerGatewayCli } from "./gateway-cli.js";
 import { registerHooksCli } from "./hooks-cli.js";
 import { registerNodesCli } from "./nodes-cli.js";
 import { forceFreePort } from "./ports.js";
-import { registerTuiCli } from "./tui-cli.js";
 
 export { forceFreePort };
 
@@ -80,7 +80,7 @@ export function buildProgram() {
       .join("\n");
     defaultRuntime.error(
       danger(
-        `Legacy config entries detected. Run "clawdis doctor" (or ask your agent) to migrate.\n${issues}`,
+        `Legacy config entries detected. Ask your agent to run \"clawdis doctor\" to migrate.\n${issues}`,
       ),
     );
     process.exit(1);
@@ -395,7 +395,6 @@ Examples:
   registerCanvasCli(program);
   registerGatewayCli(program);
   registerNodesCli(program);
-  registerTuiCli(program);
   registerCronCli(program);
   registerDnsCli(program);
   registerHooksCli(program);
@@ -438,6 +437,43 @@ Examples:
             json: Boolean(opts.json),
             deep: Boolean(opts.deep),
             timeoutMs: timeout,
+          },
+          defaultRuntime,
+        );
+      } catch (err) {
+        defaultRuntime.error(String(err));
+        defaultRuntime.exit(1);
+      }
+    });
+
+  program
+    .command("usage")
+    .description("Show token usage from session logs")
+    .option("--json", "Output JSON instead of text", false)
+    .option(
+      "--sessions-dir <dir>",
+      "Override session transcripts directory (default: ~/.clawdis/sessions)",
+    )
+    .option(
+      "--tier <tier>",
+      "Anthropic tier for daily limit estimates (tier-1..tier-4)",
+    )
+    .addHelpText(
+      "after",
+      `
+Examples:
+  clawdis usage
+  clawdis usage --json
+  clawdis usage --tier tier-2
+  clawdis usage --sessions-dir ~/.clawdis/sessions`,
+    )
+    .action(async (opts) => {
+      try {
+        await usageCommand(
+          {
+            json: Boolean(opts.json),
+            sessionsDir: opts.sessionsDir as string | undefined,
+            tier: opts.tier as string | undefined,
           },
           defaultRuntime,
         );
