@@ -1495,7 +1495,7 @@ function createCronTool(): AnyAgentTool {
           }
           return jsonResult(
             await callGatewayTool("cron.update", gatewayOpts, {
-              jobId,
+              id: jobId,
               patch: params.patch,
             }),
           );
@@ -1503,19 +1503,19 @@ function createCronTool(): AnyAgentTool {
         case "remove": {
           const jobId = readStringParam(params, "jobId", { required: true });
           return jsonResult(
-            await callGatewayTool("cron.remove", gatewayOpts, { jobId }),
+            await callGatewayTool("cron.remove", gatewayOpts, { id: jobId }),
           );
         }
         case "run": {
           const jobId = readStringParam(params, "jobId", { required: true });
           return jsonResult(
-            await callGatewayTool("cron.run", gatewayOpts, { jobId }),
+            await callGatewayTool("cron.run", gatewayOpts, { id: jobId }),
           );
         }
         case "runs": {
           const jobId = readStringParam(params, "jobId", { required: true });
           return jsonResult(
-            await callGatewayTool("cron.runs", gatewayOpts, { jobId }),
+            await callGatewayTool("cron.runs", gatewayOpts, { id: jobId }),
           );
         }
         case "wake": {
