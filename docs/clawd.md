@@ -85,7 +85,7 @@ Now message the assistant number from your allowlisted phone.
 
 Clawd reads operating instructions and “memory” from its workspace directory.
 
-By default, Clawdbot uses `~/clawd` as the agent workspace, and will create it (plus starter `AGENTS.md`, `SOUL.md`, `TOOLS.md`) automatically on setup/first agent run.
+By default, Clawdbot uses `~/clawd` as the agent workspace, and will create it (plus starter `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`) automatically on setup/first agent run. `BOOTSTRAP.md` is only created when the workspace is brand new (it should not come back after you delete it).
 
 Tip: treat this folder like Clawd’s “memory” and make it a git repo (ideally private) so your `AGENTS.md` + memory files are backed up.
 
@@ -99,6 +99,16 @@ Optional: choose a different workspace with `agent.workspace` (supports `~`).
 {
   agent: {
     workspace: "~/clawd"
+  }
+}
+```
+
+If you already ship your own workspace files from a repo, you can disable bootstrap file creation entirely:
+
+```json5
+{
+  agent: {
+    skipBootstrap: true
   }
 }
 ```
@@ -144,8 +154,8 @@ Example:
 
 ## Sessions and memory
 
-- Session files: `~/.clawdbot/sessions/{{SessionId}}.jsonl`
-- Session metadata (token usage, last route, etc): `~/.clawdbot/sessions/sessions.json` (legacy: `~/.clawdbot/sessions.json`)
+- Session files: `~/.clawdbot/agents/<agentId>/sessions/{{SessionId}}.jsonl`
+- Session metadata (token usage, last route, etc): `~/.clawdbot/agents/<agentId>/sessions/sessions.json` (legacy: `~/.clawdbot/sessions/sessions.json`)
 - `/new` or `/reset` starts a fresh session for that chat (configurable via `resetTriggers`). If sent alone, the agent replies with a short hello to confirm the reset.
 - `/compact [instructions]` compacts the session context and reports the remaining context budget.
 

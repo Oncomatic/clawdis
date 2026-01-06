@@ -34,6 +34,10 @@ import { defaultRuntime } from "../runtime.js";
 import { readTelegramAllowFromStore } from "../telegram/pairing-store.js";
 import { resolveTelegramToken } from "../telegram/token.js";
 import { normalizeE164, resolveUserPath, sleep } from "../utils.js";
+import {
+  detectLegacyStateMigrations,
+  runLegacyStateMigrations,
+} from "./doctor-state-migrations.js";
 import { healthCommand } from "./health.js";
 import {
   applyWizardMetadata,
@@ -243,15 +247,28 @@ async function noteSecurityWarnings(cfg: ClawdbotConfig) {
   }
 }
 
-function replacePathSegment(
+function normalizeDefaultWorkspacePath(
   value: string | undefined,
-  from: string,
-  to: string,
 ): string | undefined {
   if (!value) return value;
-  const pattern = new RegExp(`(^|[\\/])${from}([\\/]|$)`, "g");
-  if (!pattern.test(value)) return value;
-  return value.replace(pattern, `$1${to}$2`);
+
+  const resolved = resolveUserPath(value);
+  const home = os.homedir();
+
+  const next = [
+    ["clawdis", "clawd"],
+    ["clawdbot", "clawd"],
+  ].reduce((acc, [from, to]) => {
+    const fromPrefix = path.join(home, from);
+    if (acc === fromPrefix) return path.join(home, to);
+    const withSep = `${fromPrefix}${path.sep}`;
+    if (acc.startsWith(withSep)) {
+      return path.join(home, to).concat(acc.slice(fromPrefix.length));
+    }
+    return acc;
+  }, resolved);
+
+  return next === resolved ? value : next;
 }
 
 function replaceLegacyName(value: string | undefined): string | undefined {
@@ -552,11 +569,7 @@ function normalizeLegacyConfigValues(cfg: ClawdbotConfig): {
   let next: ClawdbotConfig = cfg;
 
   const workspace = cfg.agent?.workspace;
-  const updatedWorkspace = replacePathSegment(
-    replacePathSegment(workspace, "clawdis", "clawdbot"),
-    "clawd",
-    "clawdbot",
-  );
+  const updatedWorkspace = normalizeDefaultWorkspacePath(workspace);
   if (updatedWorkspace && updatedWorkspace !== workspace) {
     next = {
       ...next,
@@ -569,11 +582,7 @@ function normalizeLegacyConfigValues(cfg: ClawdbotConfig): {
   }
 
   const workspaceRoot = cfg.agent?.sandbox?.workspaceRoot;
-  const updatedWorkspaceRoot = replacePathSegment(
-    replacePathSegment(workspaceRoot, "clawdis", "clawdbot"),
-    "clawd",
-    "clawdbot",
-  );
+  const updatedWorkspaceRoot = normalizeDefaultWorkspacePath(workspaceRoot);
   if (updatedWorkspaceRoot && updatedWorkspaceRoot !== workspaceRoot) {
     next = {
       ...next,
@@ -832,6 +841,29 @@ export async function doctorCommand(
   if (normalized.changes.length > 0) {
     note(normalized.changes.join("\n"), "Doctor changes");
     cfg = normalized.config;
+  }
+
+  const legacyState = await detectLegacyStateMigrations({ cfg });
+  if (legacyState.preview.length > 0) {
+    note(legacyState.preview.join("\n"), "Legacy state detected");
+    const migrate = guardCancel(
+      await confirm({
+        message: "Migrate legacy state (sessions/agent/WhatsApp auth) now?",
+        initialValue: true,
+      }),
+      runtime,
+    );
+    if (migrate) {
+      const migrated = await runLegacyStateMigrations({
+        detected: legacyState,
+      });
+      if (migrated.changes.length > 0) {
+        note(migrated.changes.join("\n"), "Doctor changes");
+      }
+      if (migrated.warnings.length > 0) {
+        note(migrated.warnings.join("\n"), "Doctor warnings");
+      }
+    }
   }
 
   cfg = await maybeRepairSandboxImages(cfg, runtime);

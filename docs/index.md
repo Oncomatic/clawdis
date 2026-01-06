@@ -26,16 +26,22 @@ read_when:
 CLAWDBOT bridges WhatsApp (via WhatsApp Web / Baileys), Telegram (Bot API / grammY), Discord (Bot API / discord.js), and iMessage (imsg CLI) to coding agents like [Pi](https://github.com/badlogic/pi-mono).
 It’s built for [Clawd](https://clawd.me), a space lobster who needed a TARDIS.
 
+## Start here
+
+- **New install from zero:** https://docs.clawd.bot/getting-started
+- **Guided setup (recommended):** https://docs.clawd.bot/wizard (`clawdbot onboard`)
+
 ## How it works
 
 ```
 WhatsApp / Telegram / Discord
         │
         ▼
-  ┌──────────────────────────┐
+  ┌───────────────────────────┐
   │          Gateway          │  ws://127.0.0.1:18789 (loopback-only)
   │     (single source)       │  tcp://0.0.0.0:18790 (Bridge)
-  │                          │  http://<gateway-host>:18793/__clawdbot__/canvas/ (Canvas host)
+  │                           │  http://<gateway-host>:18793
+  │                           │    /__clawdbot__/canvas/ (Canvas host)
   └───────────┬───────────────┘
               │
               ├─ Pi agent (RPC)
@@ -64,6 +70,7 @@ Most operations flow through the **Gateway** (`clawdbot gateway`), a single long
 - 🎮 **Discord Bot** — DMs + guild channels via discord.js
 - 💬 **iMessage** — Local imsg CLI integration (macOS)
 - 🤖 **Agent bridge** — Pi (RPC mode) with tool streaming
+- 🧠 **Multi-agent routing** — Route provider accounts/peers to isolated agents (workspace + per-agent sessions)
 - 🔐 **Subscription auth** — Anthropic (Claude Pro/Max) + OpenAI (ChatGPT/Codex) via OAuth
 - 💬 **Sessions** — Direct chats collapse into shared `main` (default); groups are isolated
 - 👥 **Group Chat Support** — Mention-based by default; owner can toggle `/activation always|mention`
@@ -131,6 +138,7 @@ Example:
   - [Docs hubs (all pages linked)](https://docs.clawd.bot/hubs)
   - [FAQ](https://docs.clawd.bot/faq) ← *common questions answered*
   - [Configuration](https://docs.clawd.bot/configuration)
+  - [Multi-agent routing](https://docs.clawd.bot/multi-agent)
   - [Updating / rollback](https://docs.clawd.bot/updating)
   - [Pairing (DM + nodes)](https://docs.clawd.bot/pairing)
   - [Nix mode](https://docs.clawd.bot/nix)

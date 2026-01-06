@@ -3,7 +3,10 @@ import {
   type SlackCommandMiddlewareArgs,
   type SlackEventMiddlewareArgs,
 } from "@slack/bolt";
-import { chunkText, resolveTextChunkLimit } from "../auto-reply/chunk.js";
+import {
+  chunkMarkdownText,
+  resolveTextChunkLimit,
+} from "../auto-reply/chunk.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
 import { formatAgentEnvelope } from "../auto-reply/envelope.js";
 import { dispatchReplyFromConfig } from "../auto-reply/reply/dispatch-from-config.js";
@@ -34,6 +37,7 @@ import {
   readProviderAllowFromStore,
   upsertProviderPairingRequest,
 } from "../pairing/pairing-store.js";
+import { resolveAgentRoute } from "../routing/resolve-route.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { reactSlackMessage } from "./actions.js";
 import { sendMessageSlack } from "./send.js";
@@ -347,7 +351,7 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
     const chatType = isRoom ? "room" : isGroup ? "group" : "direct";
     return resolveSessionKey(
       sessionScope,
-      { From: from, ChatType: chatType, Surface: "slack" },
+      { From: from, ChatType: chatType, Provider: "slack" },
       mainKey,
     );
   };
@@ -430,9 +434,11 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   });
 
   let botUserId = "";
+  let teamId = "";
   try {
     const auth = await app.client.auth.test({ token: botToken });
     botUserId = auth.user_id ?? "";
+    teamId = auth.team_id ?? "";
   } catch (err) {
     runtime.error?.(danger(`slack auth failed: ${String(err)}`));
   }
@@ -731,15 +737,16 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
       : isRoom
         ? `slack:channel:${message.channel}`
         : `slack:group:${message.channel}`;
-    const sessionKey = resolveSessionKey(
-      sessionScope,
-      {
-        From: slackFrom,
-        ChatType: isDirectMessage ? "direct" : isRoom ? "room" : "group",
-        Surface: "slack",
+    const route = resolveAgentRoute({
+      cfg,
+      provider: "slack",
+      teamId: teamId || undefined,
+      peer: {
+        kind: isDirectMessage ? "dm" : isRoom ? "channel" : "group",
+        id: isDirectMessage ? (message.user ?? "unknown") : message.channel,
       },
-      mainKey,
-    );
+    });
+    const sessionKey = route.sessionKey;
     enqueueSystemEvent(`${inboundLabel}: ${preview}`, {
       sessionKey,
       contextKey: `slack:message:${message.channel}:${message.ts ?? "unknown"}`,
@@ -747,7 +754,7 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
 
     const textWithId = `${rawBody}\n[slack message id: ${message.ts} channel: ${message.channel}]`;
     const body = formatAgentEnvelope({
-      surface: "Slack",
+      provider: "Slack",
       from: senderName,
       timestamp: message.ts ? Math.round(Number(message.ts) * 1000) : undefined,
       body: textWithId,
@@ -760,11 +767,13 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
       To: isDirectMessage
         ? `user:${message.user}`
         : `channel:${message.channel}`,
+      SessionKey: route.sessionKey,
+      AccountId: route.accountId,
       ChatType: isDirectMessage ? "direct" : isRoom ? "room" : "group",
       GroupSubject: isRoomish ? roomLabel : undefined,
       SenderName: senderName,
       SenderId: message.user,
-      Surface: "slack" as const,
+      Provider: "slack" as const,
       MessageSid: message.ts,
       ReplyToId: message.thread_ts ?? message.ts,
       Timestamp: message.ts ? Math.round(Number(message.ts) * 1000) : undefined,
@@ -783,13 +792,15 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
 
     if (isDirectMessage) {
       const sessionCfg = cfg.session;
-      const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
-      const storePath = resolveStorePath(sessionCfg?.store);
+      const storePath = resolveStorePath(sessionCfg?.store, {
+        agentId: route.agentId,
+      });
       await updateLastRoute({
         storePath,
-        sessionKey: mainKey,
-        channel: "slack",
+        sessionKey: route.mainSessionKey,
+        provider: "slack",
         to: `user:${message.user}`,
+        accountId: route.accountId,
       });
     }
 
@@ -1427,6 +1438,12 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
             ? `#${channelName}`
             : `#${command.channel_id}`;
           const isRoomish = isRoom || isGroupDm;
+          const route = resolveAgentRoute({
+            cfg,
+            provider: "slack",
+            teamId: teamId || undefined,
+            peer: { kind: "dm", id: command.user_id },
+          });
 
           const ctxPayload = {
             Body: prompt,
@@ -1439,11 +1456,12 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
             ChatType: isDirectMessage ? "direct" : isRoom ? "room" : "group",
             GroupSubject: isRoomish ? roomLabel : undefined,
             SenderName: senderName,
-            Surface: "slack" as const,
+            Provider: "slack" as const,
             WasMentioned: true,
             MessageSid: command.trigger_id,
             Timestamp: Date.now(),
-            SessionKey: `${slashCommand.sessionPrefix}:${command.user_id}`,
+            SessionKey: `agent:${route.agentId}:${slashCommand.sessionPrefix}:${command.user_id}`,
+            AccountId: route.accountId,
           };
 
           const replyResult = await getReplyFromConfig(
@@ -1510,7 +1528,7 @@ async function deliverReplies(params: {
     if (!text && mediaList.length === 0) continue;
 
     if (mediaList.length === 0) {
-      for (const chunk of chunkText(text, chunkLimit)) {
+      for (const chunk of chunkMarkdownText(text, chunkLimit)) {
         const trimmed = chunk.trim();
         if (!trimmed || trimmed === SILENT_REPLY_TOKEN) continue;
         await sendMessageSlack(params.target, trimmed, {
@@ -1572,7 +1590,7 @@ async function deliverSlackSlashReplies(params: {
       .filter(Boolean)
       .join("\n");
     if (!combined) continue;
-    for (const chunk of chunkText(combined, chunkLimit)) {
+    for (const chunk of chunkMarkdownText(combined, chunkLimit)) {
       messages.push(chunk);
     }
   }

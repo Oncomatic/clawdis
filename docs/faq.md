@@ -18,8 +18,9 @@ Everything lives under `~/.clawdbot/`:
 | `~/.clawdbot/agent/auth-profiles.json` | Auth profiles (OAuth + API keys) |
 | `~/.clawdbot/agent/auth.json` | Runtime API key cache (managed automatically) |
 | `~/.clawdbot/credentials/` | WhatsApp/Telegram auth tokens |
-| `~/.clawdbot/sessions/` | Conversation history & state |
-| `~/.clawdbot/sessions/sessions.json` | Session metadata |
+| `~/.clawdbot/agents/` | Per-agent state (agentDir + sessions) |
+| `~/.clawdbot/agents/<agentId>/sessions/` | Conversation history & state (per agent) |
+| `~/.clawdbot/agents/<agentId>/sessions/sessions.json` | Session metadata (per agent) |
 
 Your **workspace** (AGENTS.md, memory files, skills) is separate — configured via `agent.workspace` in your config (default: `~/clawd`).
 
@@ -544,10 +545,10 @@ pkill -f "clawdbot"
 # Remove data
 trash ~/.clawdbot
 
-# Remove repo and re-clone
-trash ~/clawdbot
-git clone https://github.com/clawdbot/clawdbot.git
-cd clawdbot && pnpm install && pnpm build
+# Remove repo and re-clone (adjust path if you cloned elsewhere)
+trash ~/Projects/clawdbot
+git clone https://github.com/clawdbot/clawdbot.git ~/Projects/clawdbot
+cd ~/Projects/clawdbot && pnpm install && pnpm build
 pnpm clawdbot onboard
 ```
 
