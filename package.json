@@ -148,7 +148,8 @@
   },
   "pnpm": {
     "overrides": {
-      "@sinclair/typebox": "0.34.46"
+      "@sinclair/typebox": "0.34.46",
+      "eventemitter3": "5.0.1"
     },
     "patchedDependencies": {
       "@mariozechner/pi-ai": "patches/@mariozechner__pi-ai.patch",
